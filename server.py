@@ -1,22 +1,30 @@
 import http, select, socket, time
 import os,sys,traceback, signal
 
+"""
+Simple Http mini server, only supports get, but will not crash with the other
+protocols, but instead sends back a 501 http response. Relies on ArgumentParser
+from argparse to parse the command line arguments as well as giving
+
+
+"""
 class Server:
     def __init__(self, port, docroot, logfile_name):
         self.port = port
         self.docroot = docroot
         self.logfile = logfile_name
 
+        #socket framework
         self.ip = ''
         self.http_socket =  socket.socket(socket.AF_INET, socket.SOCK_STREAM, \
         socket.IPPROTO_TCP)
         self.http_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
         try:
             self.http_socket.bind((self.ip, self.port))
         except Exception as e:
             print('binding error:\n')
             print(e)
+            sys.exit(3)
 
         #listening on socket
         self.http_socket.listen(5)
@@ -29,13 +37,24 @@ class Server:
         try:
             #inputready,outputready,exceptready = select.select(self.inputs, self.outputs, [])
             while(1):
-                (clientsocket, address) = self.http_socket.accept()
 
-                rd = clientsocket.recv(5000).decode()
-                #some reason we are getting an empty string from Chrome? :(
+                (clientsocket, address) = self.http_socket.accept()
+                try:
+                    clientsocket.settimeout(20)
+                    rd = clientsocket.recv(5000).decode()
+                except socket.timeout:
+                    print("No Traffic, closing the connection")
+                    clientsocket.close()
+                    continue
+                #some reason we are getting an empty string from Chrome? :(, probably could find an error somewhere in the code
                 if rd is '':
                     continue
+                self.log_file(rd)
                 pieces = rd.split("\n")
+                if self.find_closed(pieces):
+                    clientsocket.close()
+                    print("Client closes connection")
+                    continue
                 headline = pieces[0]
                 requested_file = headline.split(" ")[1]
                 http_method = headline.split(" ")[0]
@@ -50,7 +69,10 @@ class Server:
                     else:
                         self.send_file(clientsocket, requested_file)
                 else:
+                    #we're gonna send the unimplmented packet back to that socket
                     self.send_unimplemented(clientsocket)
+
+
 
         except KeyboardInterrupt:
             print("\nShutting down...\n")
@@ -98,7 +120,7 @@ class Server:
             response_hdr += "Last-Modified: " + str(os.stat(self.docroot+requested_file).st_mtime)
             response_hdr += "\r\n\r\n"
 
-            send_file = open(self.docroot + "/index.html", "r").read().encode() + b"\r\n\r\n"
+            send_file = open(self.docroot + "/index.html", "r").read().encode() + b"\r\n"
 
             #send homepage!
             clientsocket.send(response_hdr.encode())
@@ -133,6 +155,8 @@ class Server:
 
                 clientsocket.send(response_hdr.encode())
                 clientsocket.send(send_file)
+
+
             #either the file is not there
             else:
                 print("Cannot find: "+ requested_file)
@@ -141,7 +165,10 @@ class Server:
                 response_hdr +="Date: " + str(time.strftime("%c"))
                 response_hdr += "\r\n\r\n"
 
-                send_file = open(os.path.join(self.docroot, 'assets/404.html'), "r").read().encode() + b'\r\n\r\n'
+                if os.path.exists(self.docroot + '/assets/404.html'):
+                    send_file = open(os.path.join(self.docroot, 'assets/404.html'), "r").read().encode() + b'\r\n\r\n'
+                else:
+                    send_file = "<html><h1>HTTP:404 File not found</h1></html>".encode() + b'\r\n\r\n'
                 #send over 404 header
                 clientsocket.send(response_hdr.encode())
                 clientsocket.send(send_file)
@@ -155,7 +182,22 @@ class Server:
         response_hdr += "\r\n\r\n"
 
         clientsocket.send(response_hdr.encode())
-
+    def log_file(self, log_string):
+        #TODO: make this thread safe
+        if self.log_file:
+            with open(self.logfile, 'a+') as f:
+                f.write("\nWe got this HTTP request: \n")
+                f.write(log_string)
+                f.write("--"*10)
+        else:
+            sys.stdout.write(log_string)
+    def find_closed(self, pieces):
+        for i in pieces:
+            pot_conn_head = i.split(": ")
+            if pot_conn_head[0] == "Connection":
+                if pot_conn_head[1] == "closed\r":
+                    return True
+        return False
 
 
 
