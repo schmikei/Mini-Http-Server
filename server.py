@@ -10,7 +10,7 @@ This uses low level libraries to recieve the http requests, and does all the
 parsing of the http messages within the server. Supposed to be used with a web
 browser. Please enjoy! :D
 
-@authors, Keith Schmitt, Nick Hurt
+@authors, Keith Schmitt, Nick Hurt, Runquan(Jerry) Ye
 """
 class Server:
     def __init__(self, port, docroot, logfile_name):
@@ -23,6 +23,10 @@ class Server:
         self.http_socket =  socket.socket(socket.AF_INET, socket.SOCK_STREAM, \
         socket.IPPROTO_TCP)
         self.http_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        #creata a log record list
+        self.log_list = []
+        
         try:
             self.http_socket.bind((self.ip, self.port))
         except Exception as e:
@@ -50,12 +54,13 @@ class Server:
                     print("No Traffic, closing the connection")
                     clientsocket.close()
                     continue
+                '''
                 #some reason we are getting an empty string from Chrome? :(, probably could find an error somewhere in the code
                 if rd is '':
                     continue
                 self.log_file(rd)
                 pieces = rd.split("\n")
-
+                '''
                 if self.find_closed(pieces):
                     clientsocket.close()
                     print("Client closes connection")
@@ -96,6 +101,14 @@ class Server:
     def sighandler(self, signum, frame):
         print('Got a sigint, shutting down the server')
         self.http_socket.close()
+        '''
+            Jerry: Now the program close.
+            I can update the log file use open() with no conflict with the web  
+        '''
+        file = open(self.logfile, "w")
+        for log in self.log_list:
+            file.write(log)
+        file.close()
         sys.exit(1)
 
     def send_directory_contents(self,clientsocket, requested_file):
@@ -107,13 +120,17 @@ class Server:
         #last modified header
         response_hdr += "Last-Modified: " + str(os.path.getmtime(self.docroot+requested_file))
         response_hdr += "\r\n\r\n"
-
+        #add into the record log file
+        self.logRecord(response_hdr)
+        
         #construct html for directory
         send_file = "<html><h2>Requested a directory. Here are the contents you can see: </h2>"
         send_file += "<li>".join([str(i)  for i in os.listdir(self.docroot + requested_file)])
         send_file +="+ </li></html>"
         send_file += "\r\n\r\n"
-
+        
+        #add into the record log file
+        self.logRecord(send_file)
         #send the constructed file
         clientsocket.send(response_hdr.encode())
         clientsocket.send(send_file.encode())
@@ -130,9 +147,10 @@ class Server:
             #last modified header
             response_hdr += "Last-Modified: " + str(os.stat(self.docroot+requested_file).st_mtime)
             response_hdr += "\r\n\r\n"
-
+            #add into the record log file
+            self.logRecord(send_file)
             send_file = open(self.docroot + "/index.html", "r").read().encode() + b"\r\n"
-
+            
             #send homepage!
             clientsocket.send(response_hdr.encode())
             clientsocket.send(send_file)
@@ -163,7 +181,8 @@ class Server:
                 response_hdr += "Last-Modified: " + str(os.stat(self.docroot+requested_file).st_mtime)
                 response_hdr += "\r\n\r\n"
 
-
+                #add into the record log file
+                self.logRecord(send_file)
                 clientsocket.send(response_hdr.encode())
                 clientsocket.send(send_file)
 
@@ -181,6 +200,8 @@ class Server:
                 else:
                     send_file = "<html><h1>HTTP:404 File not found</h1></html>".encode() + b'\r\n\r\n'
                 #send over 404 header
+                #add into the record log file
+                self.logRecord(response_hdr)
                 clientsocket.send(response_hdr.encode())
                 clientsocket.send(send_file)
 
@@ -191,9 +212,12 @@ class Server:
         response_hdr += "Content-Type: text/html; charset=utf-8\r\n"
         response_hdr +="Date: " + str(time.strftime("%c"))
         response_hdr += "\r\n\r\n"
-
+        #add into the record log file
+        self.logRecord(response_hdr)
+        
         clientsocket.send(response_hdr.encode())
     def log_file(self, log_string):
+        '''
         #TODO: make this thread safe
         if self.log_file:
             with open(self.logfile, 'a+') as f:
@@ -202,6 +226,15 @@ class Server:
                 f.write("--"*10)
         else:
             sys.stdout.write(log_string)
+        '''
+        '''
+            Jerry: I try to create a file and store every log inside. but i cannot use the
+            fopen() because it been use to open the web.
+            Therefore, I think about store everything inside a list.
+            after end of the program them I store inside of the file then it will not interfare the website
+        '''
+        self.log_list.append(info)
+        
     def find_closed(self, pieces):
         for i in pieces:
             pot_conn_head = i.split(": ")

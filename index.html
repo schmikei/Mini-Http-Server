@@ -1,17 +1,58 @@
 
-<h1>Keith, Nick, Jerry<h1>
-<link rel="icon" type="images/png" href="assets/favicon.ico" />
-<h2>Here is our web server, please enjoy yourself!<h2>
+<!DOCTYPE html>
+<html>
+    <title>Project 4</title>
+    <body>
+        <h1>Web Server</h1>
+        <h1>Team members: Keith, Nick, Jerry(Runquan)</h1>
+        <link rel="icon" type="images/png" href="assets/favicon.ico" />
+        <h3>Here is our web server, please enjoy yourself!</h3>
 
-<!-- downloading single text files -->
-<a href="./assets/testing.txt" download>testing.txt </a>
+        <!-- downloading single text files -->
+        <h3> Here are the files for download testing: 
+            <ul>
+                <li><a href="./assets/testing.txt" id="check" download>testing.txt</a></li>
+                <li><a href="./assets/pdfTesting.pdf" download>pdfTesting.pdf</a></li>
+            </ul>
+        </h3>
+        
+
+        <!-- let's make a bunch of images :D -->
+
+        <img src="assets/dr_pepper_1.png" alt="Image test 1" style="width:240px;height:100;"download/>
+
+        <img src="assets/dr_pepper_2.png" alt="Image test 2" style="width:240px;height:100;"download/>
 
 
-<!-- let's make a bunch of images :D -->
-
-<img src="assets/dr_pepper_1.jpg" download></img>
-
-<img src="assets/dr_pepper_2.jpg" download></img>
-
-
-<img src="assets/dr_pepper_3.png" download></img>
+        <img src="assets/dr_pepper_3.png" alt="Image test 3" style="width:240px;height:100;"download/>
+        
+        <h4>
+            <b>Note</b>: 
+            <ol>    
+                <li>Image3 as plan would not show up, because the image3 is not in the current file path. To fix the issue, you will need to drag the image3 file out of the 'source' folder.</li>
+                <li>To make other files disable, just drop those file into the source folder.</li>
+            </ol>
+        </h4>
+    </body>
+    <script type="text/javascript">
+        
+        
+        
+         $(function() {
+    $("#check").click(function(e) {
+     $.ajax({
+        url: "testing.txt",
+        method: "HEAD",
+        statusCode: {
+            404: function () {
+                alert('not found');
+            },
+            200: function() {
+            alert("foundfile exists");
+        }
+        }
+    });
+    });
+  });
+    </script>
+</html>
