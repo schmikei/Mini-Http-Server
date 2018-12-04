@@ -6,7 +6,11 @@ Simple Http mini server, only supports get, but will not crash with the other
 protocols, but instead sends back a 501 http response. Relies on ArgumentParser
 from argparse to parse the command line arguments as well as giving
 
+This uses low level libraries to recieve the http requests, and does all the
+parsing of the http messages within the server. Supposed to be used with a web
+browser. Please enjoy! :D
 
+@authors, Keith Schmitt, Nick Hurt
 """
 class Server:
     def __init__(self, port, docroot, logfile_name):
@@ -37,11 +41,11 @@ class Server:
         try:
             #inputready,outputready,exceptready = select.select(self.inputs, self.outputs, [])
             while(1):
-
                 (clientsocket, address) = self.http_socket.accept()
                 try:
                     clientsocket.settimeout(20)
                     rd = clientsocket.recv(5000).decode()
+
                 except socket.timeout:
                     print("No Traffic, closing the connection")
                     clientsocket.close()
@@ -51,13 +55,21 @@ class Server:
                     continue
                 self.log_file(rd)
                 pieces = rd.split("\n")
+
                 if self.find_closed(pieces):
                     clientsocket.close()
                     print("Client closes connection")
                     continue
+
                 headline = pieces[0]
                 requested_file = headline.split(" ")[1]
                 http_method = headline.split(" ")[0]
+
+                """
+                if self.find_modified(pieces, requested_file):
+                    self.send_not_modified(clientsocket)
+                    continue """
+
                 #print out headline of message
                 if ( len(pieces) > 0 ) : print(headline)
 
@@ -71,8 +83,6 @@ class Server:
                 else:
                     #we're gonna send the unimplmented packet back to that socket
                     self.send_unimplemented(clientsocket)
-
-
 
         except KeyboardInterrupt:
             print("\nShutting down...\n")
@@ -95,7 +105,7 @@ class Server:
         response_hdr +="Date: " + str(time.strftime("%c"))
         response_hdr += "Content-Type: text/html; charset=utf-8\r\n"
         #last modified header
-        response_hdr += "Last-Modified: " + str(os.stat(self.docroot+requested_file).st_mtime)
+        response_hdr += "Last-Modified: " + str(os.path.getmtime(self.docroot+requested_file))
         response_hdr += "\r\n\r\n"
 
         #construct html for directory
@@ -110,6 +120,7 @@ class Server:
 
     def send_file(self,clientsocket, requested_file):
         #default will direct them to the index.html!
+
         if requested_file == '/':
             #Construct response when okay! 200
             response_hdr = "HTTP/1.1 200 OK\r\n"
@@ -199,12 +210,30 @@ class Server:
                     return True
         return False
 
+    def find_modified(self, pieces, requested_file):
+        for i in pieces:
+            potential_mod = i.split(": ")
+            if potential_mod[0] == "If-Modified-Since":
+                if potential_mod[1] != os.stat(self.docroot+requested_file).st_mtime:
+                    return True
+        return False
+
+
+    def send_not_modified(self, clientsocket):
+        response_hdr = "HTTP/1.1 304 Not Modified\r\n"
+        response_hdr +="Date: " + str(time.strftime("%c"))
+        response_hdr += "\r\n\r\n"
+
+        clientsocket.send(response_hdr.encode())
+
+
+
 
 
 if __name__ == '__main__':
     import argparse
     #parsing for the arguments using the argparse package
-    parser = argparse.ArgumentParser(prog='Web Server')
+    parser = argparse.ArgumentParser(prog='Mini Web Server')
     parser.add_argument('-p', help='Port number for the server', type = int,  default = 8080)
     parser.add_argument('-docroot', help='Docstring for what the server\'s root is', default = '.')
     parser.add_argument('-logfile', help='A file for log messages to be written out', default = None)
